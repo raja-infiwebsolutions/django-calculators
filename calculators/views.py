@@ -1,54 +1,43 @@
+from decimal import Decimal
+from typing import Any, Dict
+
 from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
+from django.views import View
 
-# Render-only view for the calculator UI
-def calculator_view(request):
-    return render(request, 'calculator/card_calculator.html')
+from .forms import CalculatorForm
+from .utils import calculate
 
 
-# Simple compute endpoint for AJAX POST requests.
-# Expects JSON body: {"a": number, "b": number, "op": "add|sub|mul|div"}
-# Returns JSON: {"result": number, "error": null|string}
-@require_POST
-def compute_view(request):
-    import json
+class CalculatorView(View):
+    """
+    Render and process a simple calculator form.
 
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        return JsonResponse({'result': None, 'error': 'Invalid JSON payload'}, status=400)
+    GET: display the empty form
+    POST: validate form, perform calculation, and return result in context
+    """
 
-    a = data.get('a')
-    b = data.get('b')
-    op = data.get('op')
+    template_name = 'calculators/index.html'
 
-    # Basic validation
-    try:
-        a = float(a)
-    except Exception:
-        return JsonResponse({'result': None, 'error': 'Invalid value for a'}, status=400)
-    try:
-        b = float(b)
-    except Exception:
-        return JsonResponse({'result': None, 'error': 'Invalid value for b'}, status=400)
+    def get(self, request, *args, **kwargs):
+        form = CalculatorForm()
+        return render(request, self.template_name, {'form': form})
 
-    if op not in ('add', 'sub', 'mul', 'div'):
-        return JsonResponse({'result': None, 'error': 'Invalid operation'}, status=400)
+    def post(self, request, *args, **kwargs):
+        form = CalculatorForm(request.POST)
+        context: Dict[str, Any] = {'form': form}
 
-    try:
-        if op == 'add':
-            res = a + b
-        elif op == 'sub':
-            res = a - b
-        elif op == 'mul':
-            res = a * b
-        elif op == 'div':
-            if b == 0:
-                return JsonResponse({'result': None, 'error': 'Division by zero'}, status=400)
-            res = a / b
-    except Exception as e:
-        return JsonResponse({'result': None, 'error': str(e)}, status=500)
+        if form.is_valid():
+            operand1 = form.cleaned_data['operand1']
+            operand2 = form.cleaned_data['operand2']
+            operation = form.cleaned_data['operation']
 
-    return JsonResponse({'result': res, 'error': None}, status=200)
+            try:
+                result, symbol = calculate(Decimal(operand1), Decimal(operand2), operation)
+                # Format result as string for template display; normalize to remove exponent if any
+                context['result'] = str(result.normalize()) if hasattr(result, 'normalize') else str(result)
+                context['operation_symbol'] = symbol
+            except Exception as exc:  # pragma: no cover - defensive
+                # Unexpected errors should be surfaced as non-field error
+                form.add_error(None, f'Error performing calculation: {exc}')
+
+        return render(request, self.template_name, context)

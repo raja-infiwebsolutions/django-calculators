@@ -1,67 +1,79 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.core.exceptions import ValidationError
 
 
 class CalculatorForm(forms.Form):
-    """Form for basic calculator operations.
+    """
+    CalculatorForm accepts two numeric operands and an operation choice.
 
-    Fields:
-    - num1: first operand (Decimal)
-    - num2: second operand (Decimal)
-    - operation: one of add, sub, mul, div
-
-    The form's clean method validates that both numbers are provided and
-    that division-by-zero does not occur when operation is 'div'.
+    Validation rules:
+    - Both operands are required and must be valid decimals.
+    - Division by zero is not allowed when operation is 'divide'.
     """
 
+    OPERATION_ADD = 'add'
+    OPERATION_SUB = 'sub'
+    OPERATION_MUL = 'mul'
+    OPERATION_DIV = 'div'
+
     OPERATION_CHOICES = [
-        ("add", "Add (+)"),
-        ("sub", "Subtract (-)"),
-        ("mul", "Multiply (×)"),
-        ("div", "Divide (÷)"),
+        (OPERATION_ADD, '+'),
+        (OPERATION_SUB, '-'),
+        (OPERATION_MUL, '*'),
+        (OPERATION_DIV, '/'),
     ]
 
-    num1 = forms.DecimalField(
-        label="First number",
+    operand1 = forms.DecimalField(
         required=True,
+        max_digits=20,
         decimal_places=10,
-        max_digits=30,
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "any"}),
+        widget=forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
+        label='Operand 1',
     )
-    num2 = forms.DecimalField(
-        label="Second number",
+    operand2 = forms.DecimalField(
         required=True,
+        max_digits=20,
         decimal_places=10,
-        max_digits=30,
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "any"}),
+        widget=forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
+        label='Operand 2',
     )
     operation = forms.ChoiceField(
-        label="Operation",
-        choices=OPERATION_CHOICES,
         required=True,
-        widget=forms.Select(attrs={"class": "form-select"}),
+        choices=OPERATION_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Operation',
     )
 
     def clean(self):
-        """Custom validation for empty inputs and division by zero."""
+        """
+        Perform cross-field validation.
+        Ensure operands are present and that division by zero doesn't occur.
+        """
         cleaned_data = super().clean()
-        num1 = cleaned_data.get("num1")
-        num2 = cleaned_data.get("num2")
-        operation = cleaned_data.get("operation")
+        op1 = cleaned_data.get('operand1')
+        op2 = cleaned_data.get('operand2')
+        operation = cleaned_data.get('operation')
 
-        # Ensure both numbers are present
-        if num1 in (None, "") or num2 in (None, ""):
-            raise ValidationError("Both numbers are required.")
+        # If field-level validation already added errors, skip further checks
+        if self.errors:
+            return cleaned_data
 
-        # Division by zero check
-        if operation == "div":
+        # Ensure operands are not None (should be enforced by required=True)
+        if op1 is None:
+            raise ValidationError({'operand1': 'This field is required.'})
+        if op2 is None:
+            raise ValidationError({'operand2': 'This field is required.'})
+
+        # Validate divide-by-zero
+        if operation == self.OPERATION_DIV:
             try:
-                # Use Decimal comparison
-                if Decimal(num2) == Decimal(0):
-                    raise ValidationError("Cannot divide by zero.")
-            except (TypeError, InvalidOperation):
-                raise ValidationError("Invalid numeric input.")
+                # Decimal('0') comparison
+                if Decimal(op2) == Decimal('0'):
+                    raise ValidationError({'operand2': 'Division by zero is not allowed.'})
+            except (InvalidOperation, TypeError):
+                # If conversion fails, rely on field validation to report it
+                raise ValidationError('Invalid numeric input.')
 
         return cleaned_data

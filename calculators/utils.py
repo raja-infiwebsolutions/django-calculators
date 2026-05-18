@@ -1,47 +1,24 @@
-"""Pure calculation utilities for the calculators app.
-
-These functions are intentionally simple and pure to allow straightforward
-unit testing and reuse from views or other modules.
-"""
 from decimal import Decimal, InvalidOperation
+from typing import Tuple
 
 
-def add(a, b):
-    """Return a + b as Decimal.
+def calculate(operand1: Decimal, operand2: Decimal, operation: str) -> Tuple[Decimal, str]:
+    """
+    Perform a basic arithmetic operation on two Decimal operands.
 
-    Accepts numbers or Decimal-like inputs; returns Decimal.
+    Returns a tuple of (result, operation_symbol).
+    Raises ValueError for unsupported operations or InvalidOperation if Decimal ops fail.
     """
     try:
-        return Decimal(a) + Decimal(b)
-    except (TypeError, InvalidOperation) as exc:
-        raise ValueError("Invalid input for addition") from exc
-
-
-def sub(a, b):
-    """Return a - b as Decimal."""
-    try:
-        return Decimal(a) - Decimal(b)
-    except (TypeError, InvalidOperation) as exc:
-        raise ValueError("Invalid input for subtraction") from exc
-
-
-def mul(a, b):
-    """Return a * b as Decimal."""
-    try:
-        return Decimal(a) * Decimal(b)
-    except (TypeError, InvalidOperation) as exc:
-        raise ValueError("Invalid input for multiplication") from exc
-
-
-def div(a, b):
-    """Return a / b as Decimal. Raises ValueError on divide-by-zero."""
-    try:
-        da = Decimal(a)
-        db = Decimal(b)
-    except (TypeError, InvalidOperation) as exc:
-        raise ValueError("Invalid input for division") from exc
-
-    if db == Decimal(0):
-        raise ValueError("Division by zero")
-
-    return da / db
+        if operation == 'add':
+            return operand1 + operand2, '+'
+        if operation == 'sub':
+            return operand1 - operand2, '-'
+        if operation == 'mul':
+            return operand1 * operand2, '*'
+        if operation == 'div':
+            # Caller should ensure division by zero is prevented
+            return operand1 / operand2, '/'
+        raise ValueError(f'Unsupported operation: {operation}')
+    except InvalidOperation:
+        raise
